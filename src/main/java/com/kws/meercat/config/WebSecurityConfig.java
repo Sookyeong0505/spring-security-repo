@@ -1,27 +1,49 @@
 package com.kws.meercat.config;
 
+import com.kws.meercat.admin.login.api.JwtUserDetailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @RequiredArgsConstructor
-@EnableWebSecurity //<- 여기에 이미 @Configuration 포함되어 있음
+@Configuration
+@EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfiguration {
+
+    private final JwtUserDetailService jwtUserDetailService;
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(HttpSecurity http, BCryptPasswordEncoder passwordEncoder)
+            throws Exception {
+        AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
+        authenticationManagerBuilder.userDetailsService(jwtUserDetailService).passwordEncoder(passwordEncoder);
+        return authenticationManagerBuilder.build();
+    }
 
     // SecurityFilterChain은 필터를 적용하는 방법을 정의하는 인터페이스
     // HttpSecurity를 사용하여 필터를 적용하는 방법을 정의
-//    @Bean
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                .csrf(AbstractHttpConfigurer::disable) // CSRF 토큰 비활성화
+                .cors(AbstractHttpConfigurer::disable) // cors 설정 비활성화
                 //인가 정책
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/rest/auth/**").permitAll()
                         .requestMatchers("user").hasRole("USER")
                         .requestMatchers("admin").hasRole("ADMIN")
                         .requestMatchers("/join", "/exception", "/denied").permitAll()
@@ -51,7 +73,6 @@ public class WebSecurityConfig extends WebSecurityConfiguration {
                             response.sendRedirect("/login");
                         })
                         .deleteCookies("JSESSIONID") //해당 이름의 쿠키 삭제
-//                        .permitAll()
                 )
                 // 세션
                 .sessionManagement((sessionManagement) -> sessionManagement
